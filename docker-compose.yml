@@ -1,0 +1,102 @@
+version: '2'
+
+services:
+   plexserver:
+       container_name: plex
+       image: linuxserver/plex
+       restart: always 
+       volumes:
+           - /mnt/data/multimedia/animes:/data/animes
+           - /mnt/data/multimedia/movies:/data/movies
+           - /mnt/data/multimedia/series:/data/series
+           - /mnt/data/multimedia/audio/audiobooks:/data/audiobooks
+           - /mnt/data/opt/Plex-Trakt-Scrobbler/Trakttv.bundle:/config/Library/Application Support/Plex Media Server/Plug-ins/Trakttv.bundle
+       network_mode: host
+       environment:
+           - TZ="Europe/Paris"   
+           - PLEX_CLAIM="claim-iEzLqpz7tfyCu8azMRfT"
+           - PLEX_UID=1000
+           - PLEX_GID=1000
+
+   transmission:
+       container_name: transmission
+       image: linuxserver/transmission
+       restart: always 
+       volumes:
+          - /mnt/data/downloads:/downloads
+          - /mnt/data/multimedia/movies:/movies
+          - /mnt/data/multimedia/audio/audiobooks:/audiobooks
+          - /mnt/data/opt/transmission/:/config
+       ports:
+          - 4990:9091
+       environment:
+           - PUID=1000
+           - PGID=1000
+
+   jackett:
+       image: linuxserver/jackett
+       container_name: jackett
+       restart: always
+       volumes:
+          - /mnt/data/opt/jackett:/config
+          - /etc/localtime:/etc/localtime:ro
+       ports:
+          - 4992:9117
+       environment:
+           - TZ="Europe/Paris"   
+           - PUID=1000
+           - PGID=1000
+
+   sickrage:
+       container_name: sickrage
+       image: linuxserver/sickrage
+       restart: always 
+       links:
+           - transmission
+           - jackett
+       volumes:
+           - /mnt/data/opt/sickrage:/config
+           - /mnt/data/downloads/tv:/downloads
+           - /mnt/data/multimedia/animes:/tv/animes
+           - /mnt/data/multimedia/series:/tv/series
+           - /etc/localtime:/etc/localtime:ro
+       ports:
+           - 4993:8081
+       environment:
+           - TZ="Europe/Paris"   
+           - PUID=1000
+           - PGID=1000
+
+   joal:
+       container_name: joal
+       image: anthonyraymond/joal:2.1.19-arm
+       restart: always
+       volumes:
+          - /mnt/data/opt/joal:/data
+       ports:
+          - 4994:4994
+       environment:
+           - _JAVA_OPTIONS='-Djava.net.preferIPv6Addresses=true'
+       command: --joal-conf="/data" --spring.main.web-environment=true --server.port="4994" --joal.ui.path.prefix="joal"  --joal.ui.secret-token="phenixzr"
+
+   samba:
+       container_name: samba
+       image: elswork/samba
+       restart: always 
+       network_mode: host
+       volumes:
+           - /mnt/data/opt/joal/torrents/:/mount/joal
+           - /mnt/data/downloads/:/mount/downloads
+           - /mnt/data/multimedia/:/mount/multimedia
+           - /mnt/data/:/mount/Share
+       ports:
+           - 137:137/udp
+           - 138:138/udp
+           - 139:139
+           - 445:445
+           - 445:445/udp
+       environment:
+           - USERID=1000
+           - GROUPID=1000
+       command: -u "olivier:2207" -s "downloads:/mount/downloads:rw:olivier" -s "joal:/mount/joal:rw:olivier" -s "multimedia:/mount/multimedia:rw:olivier" -s "Share:/mount/Share:rw:olivier"
+       
